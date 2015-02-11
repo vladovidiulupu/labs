@@ -2,5 +2,6 @@
 */*.html
 */*.md
 */*.RData
+*/.Rhistory
 */*.csv
 week2/rawdata-master/
