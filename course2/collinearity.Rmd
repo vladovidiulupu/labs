@@ -42,7 +42,7 @@ Using matrix algebra we can notice this right away. The system of equations can 
 $$
 \begin{pmatrix}
 1&0&1\\
-0&1&1\\
+0&1&-1\\
 1&1&0\\
 \end{pmatrix}
 \begin{pmatrix}
@@ -58,7 +58,7 @@ c\\
 \end{pmatrix}
 $$
 
-And note that we can write the equation above as
+The third column is a linear combination of first two:
 
 $$
 \begin{pmatrix}
@@ -111,7 +111,7 @@ c
 \begin{pmatrix}
 1+0\\
 0-1\\
-1+2\\
+1-1\\
 \end{pmatrix}
 =
 (a+c)
