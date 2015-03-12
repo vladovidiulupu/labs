@@ -35,20 +35,27 @@ fold has been used as a *test* set.
 
 Let's load in the tissue gene expression dataset:
 
-
 ```{r}
-library(tissuesGeneExpression)
+# library(devtools)
+# install_github("dagdata","genomicsclass")
+library(dagdata)
 data(tissuesGeneExpression)
+library(Biobase)
+rownames(tab) <- tab$filename
+t <- ExpressionSet(e, AnnotatedDataFrame(tab))
+t$Tissue <- factor(t$Tissue)
+colnames(t) <- paste0(t$Tissue, seq_len(ncol(t)))
 ```
 
-For illustration purposes 
-let's drop one of the tissues which doesn't have many samples:
+Let's drop one of the tissues which doesn't have many samples:
 
 ```{r}
-table(tissue)
-ind <- which(tissue != "placenta")
-y <- tissue[ind]
-X <- t( e[,ind] )
+library(class)
+table(t$Tissue)
+t <- t[,t$Tissue != "placenta"]
+t$Tissue <- droplevels(t$Tissue)
+table(t$Tissue)
+x <- t(exprs(t))
 ```
 
 We will use the `createFolds` function from the `caret` 
@@ -63,30 +70,26 @@ the test observations.
 
 ```{r}
 # install.packages("caret")
-#library(class)
 library(caret)
 set.seed(1)
-idx <- createFolds(y, k=10)
-sapply(idx, function(i) table(y[i]))
-```
-
-
-Because tissues have very different gene expression profiles, predicting tissue with all genes will be too easy. For illustration purposes we will try to predict tissue type with just two dimensional data. We will reduce dimension using `cmdscale`
-
-```{r}
-Xsmall <- cmdscale(dist(X))
-plot(Xsmall,col=as.fumeric(y))
-legend("topleft",levels(factor(y)),fill=seq_along(levels(factor(y))))
+idx <- createFolds(t$Tissue, k=5)
+sapply(idx, function(i) table(t$Tissue[i]))
 ```
 
 Now we can try out the K-nearest neighbors method on a single fold:
 
 ```{r}
-library(class)
-i=1
-pred <- knn(train =  Xsmall[ -idx[[i]] , ], test = Xsmall[ idx[[i]], ], cl=  y[ -idx[[i]] ], k=5)
-table(true=y[ idx[[i]] ], pred)
-mean(y[ idx[[i]] ] != pred)
+pred <- knn(train = x[ -idx[[1]], ], test = x[ idx[[1]], ], cl=t$Tissue[ -idx[[1]] ], k=5)
+table(true=t$Tissue[ idx[[1]] ], pred)
+```
+
+As the prediction is looking too good in the space of all the genes,
+let's make it more difficult for the K-nearest neighbors algorithm.
+We will use a reduced dimension representation of the dataset, using
+the *multi-dimensional scaling* algorithm used in the previous section.
+
+```{r}
+xsmall <- cmdscale(dist(x))
 ```
 
 Now we will create a loop, which tries out each value of k from 1 to
@@ -104,12 +107,12 @@ res <- sapply(ks, function(k) {
     # loop over each of the 5 cross-validation folds
 
     # predict the held-out samples using k nearest neighbors
-    pred <- knn(train = Xsmall[ -idx[[i]], ],
-                test = Xsmall[ idx[[i]], ],
-                cl = y[ -idx[[i]] ], k = k)
+    pred <- knn(train = xsmall[ -idx[[i]], ],
+                test = xsmall[ idx[[i]], ],
+                cl = t$Tissue[ -idx[[i]] ], k = k)
 
     # the ratio of misclassified samples
-    mean(y[ idx[[i]] ] != pred)
+    mean(t$Tissue[ idx[[i]] ] != pred)
   })
   
   # average over the 5 folds
@@ -122,24 +125,3 @@ Now we can plot the mean misclassification rate for each value of k:
 ```{r}
 plot(ks, res, type="o")
 ```
-
-
-Finally, to show that gene expression can perfectly predict tissue, we use 5 dimensions instead of 2 and note we get perfect prediction
-
-```{r}
-Xsmall <- cmdscale(dist(X),k=5)
-set.seed(1)
-ks <- 1:12
-res <- sapply(ks, function(k) {
-  res.k <- sapply(seq_along(idx), function(i) {
-    pred <- knn(train = Xsmall[ -idx[[i]], ],
-                test = Xsmall[ idx[[i]], ],
-                cl = y[ -idx[[i]] ], k = k)
-    mean(y[ idx[[i]] ] != pred)
-  })
-  mean(res.k)
-})
-plot(ks, res, type="o",ylim=c(0,0.20))
-```
-
-Important note: We applied `cmdscale` to the entire dataset to create a smaller one for illustration purposes. However, in a real machine learning application all transformations of the data must be applied separately on the test and training dataset.
