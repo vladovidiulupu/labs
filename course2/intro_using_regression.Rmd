@@ -73,8 +73,8 @@ Here we read-in mouse body weight data from mice that were fed two different die
 
 
 ```{r}
-dir <- system.file(package="dagdata")
-filename <- file.path(dir,"extdata/femaleMiceWeights.csv")
+dir <- file.path("../dagdata")
+filename <- file.path(dir,"inst/extdata/femaleMiceWeights.csv")
 dat <- read.csv(filename)
 mypar2(1,1)
 stripchart(Bodyweight~Diet,data=dat,vertical=TRUE,method="jitter",pch=1,main="Mice weights")
