@@ -1,0 +1,73 @@
+In the video we talk about phenotypes. Here we show some examples of what we mean by phenotypes, how they can be coded in R objects, and how we compute with them. Later in the course we will perform analyses that statistically  connect these phenotypes to measured molecular outcomes. Here we explore the use of data frames to store phenoypes (columns) from several individuals (rows).
+
+Question 1.1.1
+(1 point possible)
+
+Install and attach the COPDSexualDimorphism.data package using biocLite. Use the commands
+
+```{r}
+library(COPDSexualDimorphism.data)
+data(lgrc.expr.meta)
+```
+
+to add the object expr.meta to your workspace. The variable pkyrs in the expr.meta data.frame represents pack years smoked. Other variables include gender (self-explanatory) and diagmaj (disease status).
+
+What is the number of female participants in this study?
+
+```{r}
+table(expr.meta$gender)
+```
+
+Question 1.1.2
+(1 point possible)
+
+What is the median of the distribution of pack years smoked in this cohort (women and men)?
+
+```{r}
+median(expr.meta$pkyrs)
+```
+
+Question 1.1.3
+(1 point possible)
+
+True or False: The distribution of pack-years smoked is well-approximated by a Gaussian (Normal) probability distribution.
+
+Select one:
+
+```{r}
+plot(density(expr.meta$pkyrs))
+qqnorm(expr.meta$pkyrs)
+qqline(expr.meta$pkyrs)
+```
+
+As a result of the human genome project sequenced we have the consensus sequence of al human chromsomes, as well as several other species. We say consensus sequence because every individual has a different sequence. But well over 99% is the same. 
+
+Suppose you want to ask a questions such as: how many times does the sequence "ATG" appear on chromosome 11 ? Or what are the percentage of A,T,C and G on chromosome 7?
+
+We can answer such question using Bioconductor tools. The human genome sequence is provided in the BSgenome.Hsapiens.UCSC.hg19 package. If you have not done so already please donwload and install this package. Note that it encodes 3 billion bases and is therefore a large package (over 800MB) so make time to download it especially if you have a slow internet connection.
+
+```{r}
+library(BiocInstaller)
+biocLite("BSgenome.Hsapiens.UCSC.hg19")
+```
+
+Then load the package and note that you now have access to sequence information
+
+```{r}
+library(BSgenome.Hsapiens.UCSC.hg19)
+BSgenome.Hsapiens.UCSC.hg19
+```
+
+Note this divided into chromosomes and includes severla unmapped. We will learn to use this type of object.
+
+We can access chromosome 11 like this:
+
+```{r}
+chr11seq <- BSgenome.Hsapiens.UCSC.hg19[["chr11"]]
+```
+
+Here, for example, is a segment of 25 bases starting  at base 1 million 
+
+```{r}
+subseq(chr11seq,start=10^6,width=25)
+```
