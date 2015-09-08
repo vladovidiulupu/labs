@@ -1,0 +1,567 @@
+As stated in the syllabus, you should be familiar with R. This assessment serves as a refresher while at the same time introduces you to high-throughput data.
+Question 1.1.1 (1 point possible)
+
+Download and install the GSE5859Subset package then load the data.
+
+```{r}
+library(devtools)
+install_github("genomicsclass/GSE5859Subset")
+library(GSE5859Subset)
+data(GSE5859Subset) ##this loads the three tables
+```
+
+How many samples where processed on 2005-06-27?
+
+```{r}
+library(lubridate)
+library(dplyr)
+
+sampleInfo %>% 
+  filter(date == as.Date(ymd("2005-06-27"))) %>%
+  nrow
+```
+
+Question 1.1.2 (1 point possible)
+
+How many of the genes represented in this particular technology are on chromosome Y?
+
+```{r}
+table(geneAnnotation$CHR)
+```
+
+Question 1.1.3 (1 point possible)
+
+What is the log expression value of the for gene ARPC1A on the one subject that we measured on 2005-06-10?
+
+```{r}
+gene <- geneAnnotation %>%
+  filter(SYMBOL == "ARPC1A") %>%
+  select(PROBEID) %>%
+  first
+
+subject <- sampleInfo %>% 
+  filter(date == as.Date(ymd("2005-06-10"))) %>%
+  select(filename) %>%
+  first
+
+geneExpression[gene, subject]
+```
+
+Question 1.2.1 (1 point possible)
+
+p-values are random variables.
+
+Note that just like the sample average is a random variable because it is based on a random sample, p-values are based on random variables (sample mean, sample standard deviation) so they are also a random variable.
+
+To see this let's see how p-values change when we take different samples.
+
+```{r}
+set.seed(1)
+library(downloader)
+url = "https://raw.githubusercontent.com/genomicsclass/dagdata/master/inst/extdata/femaleControlsPopulation.csv"
+filename = "femaleControlsPopulation.csv"
+if (!file.exists(filename)) download(url,destfile=filename)
+population = read.csv(filename)
+pvals <- replicate(1000,{
+  control = sample(population[,1],12)
+  treatment = sample(population[,1],12)
+  t.test(treatment,control)$p.val
+})
+head(pvals)
+hist(pvals)
+```
+
+Question: What proportion of the p-values is below 0.05?
+
+```{r}
+sum(pvals < 0.05) / length(pvals)
+```
+
+Question 1.2.2 (1 point possible)
+
+What proportion of the p-values is below 0.01?
+
+```{r}
+sum(pvals < 0.01) / length(pvals)
+```
+
+Question 1.2.3 (1 point possible)
+
+Assume you are testing the effectiveness of 20 diets on mice weight. For each of the 20 diets you run an experiment with 10 control mice and 10 treated mice. Assume the null hypothesis that the diet has no effect is true for all 20 diets and that mice weights follow a normal distribution with mean 30 grams and a standard deviation of 2 grams, run a Monte Carlo simulation for one of these studies:
+
+```{r}
+cases = rnorm(10,30,2)
+controls = rnorm(10,30,2)
+t.test(cases,controls)
+```
+
+Now run a Monte Carlo simulation imitating the results for the experiment for all 20 diets. If you set the seed at 100, set.seed(100), and use the same code as above inside a call to replicate how many of p-values are below 0.05?
+
+```{r}
+set.seed(100)
+pvalues <- replicate(20, {
+  cases = rnorm(10,30,2)
+  controls = rnorm(10,30,2)
+  t.test(cases,controls)$p.value
+})
+sum(pvalues <= 0.05)
+```
+
+Question 1.2.4 (1 point possible)
+
+Now create a simulation to learn about the distribution of the number of p-values that are less than 0.05. In question 1.2.3 we ran the 20 diet experiment once. Now we will run these 20 experiments 1,000 times and each time save the number of p-values that are less than 0.05.
+
+Set the seed at 100 again, set.seed(100), run the code from Question 1.2.3 1,000 times, and save the number of times the p-value is less than 0.05 for each of the 1,000 instances.
+
+What is the average of these 1,000 numbers? Note that this is the expected number of tests (out of the 20 we run) that we will reject when the null is true. (Hint: use replicate twice)
+
+```{r}
+set.seed(100)
+pvalsLessThanThreshold <- replicate(1000, {
+  pvalues <- replicate(20, {
+    cases = rnorm(10,30,2)
+    controls = rnorm(10,30,2)
+    t.test(cases,controls)$p.value
+  })
+  sum(pvalues <= 0.05)
+})
+hist(pvalsLessThanThreshold)
+mean(pvalsLessThanThreshold)
+```
+
+Question 1.2.5 (1 point possible)
+
+Note that what the answer to question 1.2.4 says is that on average, we expect some p-value to be 0.05 even when the null is true for all diets.
+
+Using the same simulation data from question 1.2.4, for what proportion of the 1,000 replications do we reject the null hypothesis at least once (more than 0 false positives)? (Enter your response as a decimal value -- i.e. 0.10 for 10%.)
+
+```{r}
+mean(pvalsLessThanThreshold >= 1)
+```
+
+
+
+In this assessment we hope to help you further grasp the concept that p-values are random variables and start laying the ground work for the development of procedures that control error rates. The calculations to compute error rates require us to understand the random behavior of p-values.
+
+We are going to ask you to perform some calculations related to introductory probability theory. One particular concept you need to grasp is statistical independence. You also will need to know that the probability of two random events that are statistically independent occurring is P( A and B) = P(A)P(B). Note that this is a consequence of the more general formula P(A and B) = P(A) P(B | A )
+
+Question 1.3.1 (1 point possible)
+
+Assume the null is true and denote the p-value you would get if you ran a test as P. Define the function f(x)=Pr(P≤x) What does f(x) look like?
+
+The identity line
+
+1.3.2 (1 point possible)
+
+In the previous assessment we saw how the probability of incorrectly rejecting the null for at least one of 20 experiments for which the null is true is well over 5%. Now let's consider a case in which we run thousands of tests as we would do in a high throughput experiment.
+
+We previously learned that under the null, the probability of a p-value < p is p. If we run 8,793 independent tests, what is the probability of incorrectly rejecting at least one of the null hypotheses? 
+
+```{r}
+1 - (0.95 ^ 8793)
+```
+
+3.3: Sidak's procedure (1 point possible)
+
+Suppose we need to run 8,793 statistical tests and we want to make the probability of a mistake very small, say 5%. Using the answer to Question 1.3.2, how small do we have to change the cutoff, previously 0.05, to lower our probability of at least one mistake to be 5%. 
+
+```{r}
+1 - 0.95^(1/8793)
+```
+
+
+This assessment should help you understand the concept of a error controlling procedure. You can think of it as defnining a set of instructions, such as "reject all the null hypothesis for  for which p-values < 0.0001" or "reject the null hypothesis for the 10 features with smallest p-values". Then, knowing the p-values are random variables, we use statistical theory to compute how many mistakes, on average, will we make if we follow this procedure. More precisely we commonly bounds on these rates, meaning that we show that they are smaller than some predermined value.
+
+As described in the video, we can compute different error rates. The FWER tells us the probability of having at least one false positive. The FDR is the expected rate of rejected null hypothesis.
+
+Note 1: the FWER and FDR are not procedures but error rates. We will review procedures here and use Monte Carlo simulations to estimate their error rates.
+
+Note 2: We sometimes use the colloquial term "pick genes that" meaning "reject the null hypothesis for genes that".
+
+Question 1.4.1: Bonferonni versus Sidak (1 point possible)
+
+So we have learned about the family wide error rate FWER. This is the probability of incorrectly rejecting the null at least once. Using the notation in the video this probability is written like this: Pr(V>0).
+
+What we want to do in practice is choose a procedure that guarantees this probability is smaller than a predetermined value such as 0.05. Here we keep it general and instead of 0.05 we use α
+
+We have already learned that the procedure "pick all the genes with p-value <0.05" fails miserably as we have seen that Pr(V>0)≈1. So what else can we do?
+
+The Bonferroni procedure assumes we have computed p-values for each test and asks what constant k should we pick so that the procedure "pick all genes with p-value less than k" has Pr(V>0)=0.05. And we typically want to be conservative rather than lenient, so we accept a procedure that has Pr(V>0)≤0.05.
+
+So the first result we rely on is that this probability is largest when all the null hypotheses are true:
+
+Pr(V>0)≤Pr(V>0|all nulls are true)
+
+or using the notation in the video:
+
+Pr(V>0)≤Pr(V>0|m1=0)
+
+In an earlier assessment we showed that if the tests are independent then
+
+Pr(V>0|m1=0)=1−(1−k)^m
+
+And we pick k so that 1−(1−k)^m=α⟹k=1−(1−α)1^/m
+
+Now, this requires the tests to be independent. The Bonferroni procedure does not make this assumption and as we saw in the video if we set k=α/m this procedure has the property that Pr(V>0)≤α.
+
+In R define
+
+```{r}
+alphas <- seq(0,0.25,0.01)
+```
+
+Make a plot of α/m and 1−(1−α)^1/m for various values of m>1.
+
+Which procedure is more conservative (picks less genes, i.e. rejects less null hypothesis): Bonferroni's or Sidak's?
+
+```{r}
+plot(alphas, alphas, type = "n", ylim = c(0, 0.02))
+for (m in c(2, 10, 100, 1000)) {
+  bonferroni <- alphas / m
+  sidak <- 1 - (1-alphas)^(1/m)
+  lines(alphas, bonferroni, col = "red")
+  lines(alphas, sidak, col = "blue")
+}
+```
+
+Question 1.4.2: Monte Carlo Simulation (1 point possible)
+
+Monte Carlo simulation. To simulate the p-value results of, say, 8,793 t-tests for which the null is true we don't actual have to generate the original data. As we learned in class we can generate p-values from a uniform distribution like this:
+
+```{r}
+pvals <- runif(8793,0,1)
+```
+
+Using what we have learned, set the cutoff using the Bonferroni correction and report back the FWER. Set the seed at 1,set.seed(1) and run 10,000 simulation. Report the Monte Carlo estimate of the FWER below.
+
+```{r}
+set.seed(1)
+errors <- replicate(10000, {
+  pvals <- runif(8793,0,1)
+  alphaAdjusted <- 0.05 / 8793
+  any(pvals <= alphaAdjusted)
+})
+mean(errors)
+```
+
+Question 1.4.3 (1 point possible)
+
+Using the same seed repeat the above for Sidak's cutoff.
+
+Report the FWER below.
+
+```{r}
+set.seed(1)
+errors <- replicate(10000, {
+  pvals <- runif(8793,0,1)
+  alphaAdjusted <- 1 - (1-0.05)^(1/8793)
+  any(pvals <= alphaAdjusted)
+})
+mean(errors)
+```
+
+In this assessment we will define error controlling procedures for experimental data. We will make list of genes based on q-values. We will also assess your understanding of false positives rates and false negative rates by asking you to create a Monte Carlo simulation.
+
+Question 1.5.1 (1 point possible)
+
+Load the gene expression data
+
+```{r}
+library(GSE5859Subset)
+data(GSE5859Subset)
+```
+
+We are interested in comparing gene expression between the two groups defined in the sampleInfo table.
+
+Compute a p-value for each gene using the function rowttests from the genefilter package in Bioconductor.
+
+```{r}
+library(genefilter)
+?rowttests
+```
+
+How many genes have p-values smaller than 0.05?
+
+```{r}
+pValues <- rowttests(geneExpression, factor(sampleInfo$group))$p.value
+sum(pValues <= 0.05)
+```
+
+Question 1.5.2 (1 point possible)
+
+Apply the Bonferroni correction to the p-values obtained in question 1.5.1 to achieve a FWER of 0.05. How many genes are called significant under this procedure?
+
+```{r}
+alphaAdjusted <- 0.05 / nrow(geneExpression)
+sum(pValues <= alphaAdjusted)
+```
+
+ Question 1.5.3 (1 point possible)
+
+Note that the FDR is a property of a list of features, not each specific feature. The q-value relates FDR to an individual feature. To define the q-value we order features we tested by p-value then compute the FDRs for a list with the most significant, the two most significant, the three most significant, etc... The FDR of the list with the, say, m most significant tests is defined as the q-value of the m-th most significant feature. In other words, the q-value of a feature, is the FDR of the biggest list that includes that gene.
+
+In R, we can compute the q-value using the p.adjust function with the FDR option. Read the help file for p.adjust and then, for our gene expression dataset, compute how many genes achieve an FDR < 0.05
+
+```{r}
+qValues <- p.adjust(pValues, method="fdr")
+sum(qValues <= 0.05)
+```
+
+ Question 1.5.4 (1 point possible)
+
+Now use the qvalue function, in the Bioconductor qvalue package, to estimate q-values using the procedure described by Storey.
+
+Using this estimate how many genes have q-values below 0.05?
+
+```{r}
+library(qvalue)
+qValuesBioC <- qvalue(pValues)
+sum(qValuesBioC$qvalues <= 0.05)
+```
+
+ Question 1.5.5 (1 point possible)
+
+Read the help file for qvalue and report the estimated proportion of genes for which the null hypothesis is true π0=m0/m
+
+```{r}
+qValuesBioC$pi0
+```
+
+ Question 1.5.6 (1 point possible)
+
+Note that we have the number of genes passing the q-value <0.05 threshold is larger with the qvalue function than the p.adjust difference.
+
+Why is this the case? Make a plot of the ratio of these two estimates to help answer the question.
+
+The qvalue function estimates the proportion of genes for which the null hypothesis is true and provides a less conservative estimate 
+
+```{r}
+pvals <- pValues
+plot(qvalue(pvals)$qvalue/p.adjust(pvals,method="fdr"))
+abline(h=qvalue(pvals)$pi0,col=2)
+
+hist(pvals,breaks=seq(0,1,len=21))
+expectedfreq <- length(pvals)/20 #per bin
+abline(h=expectedfreq*qvalue(pvals)$pi0,col=2,lty=2)
+```
+
+To get an idea of how pi0 is estimated, note that if we look at the histogram, pi0 roughly tells us the proportion that looks about uniform:
+
+ Question 1.5.7 (1 point possible)
+
+Note that this is an advanced question and that you can ask questions in the discussion forum.
+
+Create a Monte Carlo Simulation in which you simulate measurements from 8,793 genes for 24 samples: 12 cases and 12 controls.
+
+```{r}
+n <- 24
+m <- 8793
+mat <- matrix(rnorm(n*m),m,n)
+```
+
+Now for 500 genes, there is a difference of 2 between cases and controls:
+
+```{r}
+delta <- 2
+positives <- 500
+mat[1:positives,1:(n/2)] <- mat[1:positives,1:(n/2)]+delta
+```
+
+So the null hypothesis is true for 8793-500 genes. Using the notation from the videos m=8793, m0=8293 and m1=500
+
+Set the seed at 1, set.seed(1) and run this experiment 1,000 times with a Monte Carlo simulation. For each instance compute p-values using a t-test (using rowttests in the genefilter package) and create three lists of genes using:
+
+    Bonferroni correction to achieve an FWER of 0.05,
+    p-adjust estimates of FDR to achieve an FDR of 0.05, and
+    qvalue estimates of FDR to to achieve an FDR of 0.05.
+
+For each of these three lists compute the number of false positives in the list and the number of false negatives: genes not in the list that should have been because the null hypothesis is not true (we added 2 to the controls).
+
+What is the false positive rate (false positives divided by m0) if we use Bonferroni?
+
+```{r}
+n <- 24
+m <- 8793
+delta <- 2
+positives <- 500
+g <- factor(c(rep(0, n/2), rep(1, n/2)))
+
+m <- 8793
+m0 <- 8293
+m1 <- 500
+
+set.seed(1)
+df <- NULL
+result <- replicate(1000, {
+  mat <- matrix(rnorm(n*m),m,n)
+  mat[1:positives,1:(n/2)] <- mat[1:positives,1:(n/2)]+delta
+  pvals <- rowttests(mat, g)$p.value
+  
+  alphaBonferroni <- 0.05 / m
+  genesBonferroni <- which(pvals <= alphaBonferroni)
+  
+  adjustedPValues <- p.adjust(pvals, method = "fdr")
+  genesPAdjust <- which(adjustedPValues <= 0.05)
+
+  qValues <- qvalue(pvals)$qvalue
+  genesQValues <- which(qValues <= 0.05)
+  
+  fpBonferroni <- sum(genesBonferroni > 500)
+  fnBonferroni <- length(base::setdiff(1:500, genesBonferroni))
+  
+  fpPAdjust<- sum(genesPAdjust > 500)
+  fnPAdjust <- length(base::setdiff(1:500, genesPAdjust))
+  
+  fpQValues<- sum(genesQValues > 500)
+  fnQValues <- length(base::setdiff(1:500, genesQValues))
+  
+  df <<- base::rbind(df, data.frame(
+    fpBonferroni = fpBonferroni,
+    fnBonferroni = fnBonferroni,
+    fpPAdjust = fpPAdjust,
+    fnPAdjust = fnPAdjust,
+    fpQValues = fpQValues,
+    fnQValues = fnQValues))
+})
+
+mean(df$fpBonferroni) / m0
+```
+
+ Now to get the false positive rate we divide the false positives by the total number of genes for which the null hypothesis is true:
+mean(result/(m-positives))
+
+Note that this value is much smaller than 0.05. This is because Bonferroni controls FWER to be 0.05 not the FDR. In this case, controlling FWER to be 0.05 gives us very low FDR. This makes intuitive sense since having just 1 mistake out of 8,293 possible mistakes is very small and we trying to avoid even 1. 
+
+ Question 1.5.8 (1 point possible)
+
+From the same Monte Carlo simulation as in question 1.5.7, what is the false negative rate if we use Bonferroni?
+
+```{r}
+mean(df$fnBonferroni) / m1
+```
+
+ We divide the number of false negatives by the total number of tests for which the null hypothesis is false.
+mean(result[2,]/(positives))
+
+Note that having a very low FDR comes at a cost. Namely that we increase our false negative rate, in this case to 76%. This means we miss including the great majority of genes for which the null is not true. This trade-off is always present when we have to pick a cutoff. Understanding the tradeoff can help us determine what appraoch is better in the context of our scientific problem.
+
+
+ Question 1.5.9 (1 point possible)
+
+From the same Monte Carlo simulation as in question 1.5.7, what is the false positive rate if we use q-values from p.adjust?
+
+```{r}
+mean(df$fpPAdjust) / m0
+```
+
+ Then to get our false positive rate
+mean(result[3,]/(m-positives))
+
+Note that although much higher than the FDR for Bonferroni, the FDR is substantially lower than 0.05 we were shooting for. This is because the Benjamini–Hochberg procedure gives us a bound. The larger m1, the more conservative this approximation will be.
+
+ Question 1.5.10 (1 point possible)
+
+From the same Monte Carlo simulation as in question 1.5.7, what is the false negative rate if we use q-values from p.adjust?
+
+```{r}
+mean(df$fnPAdjust) / m1
+```
+
+ Then our false negative rate is
+mean(result[4,]/(positives))
+
+Here we see the potential advantage of FDR over FWER, in particular if our goal is discovery. The false negative rate is much reduced now from 0.76 to 0.08
+
+ Question 1.5.11 (1 point possible)
+
+From the same Monte Carlo simulation as in question 1.5.7, what is the false positive rate if we use q-values from qvalue function?
+
+```{r}
+mean(df$fpQValues) / m0
+```
+
+Here we see that by estimating pi0 this approach gets closer to the targeted FDR of 0.05.
+
+ Question 1.5.12 (1 point possible)
+
+From the same Monte Carlo simulation as in question 1.5.7, what is the false negative rate if we use q-values from qvalue function?
+
+```{r}
+mean(df$fnQValues) / m1
+```
+
+Here we see that by creating a list of an FDR closer to 0.05 we are less conservative and thus decrease the false negative rate further.
+
+ Question 1.6.1 (1 point possible)
+
+Download and install the Bioconductor package SpikeInSubset and then load the library and the mas133 data
+
+```{r}
+#source("http://www.bioconductor.org/biocLite.R")
+#biocLite("SpikeInSubset")
+library(SpikeInSubset)
+data(mas133)
+```
+
+Now make the following plot of the first two samples and compute the correlation:
+
+```{r}
+e <- exprs(mas133)
+plot(e[,1],e[,2],main=paste0("corr=",signif(cor(e[,1],e[,2]),3)),cex=0.5)
+k <- 3000
+b <- 1000 #a buffer
+polygon(c(-b,k,k,-b),c(-b,-b,k,k),col="red",density=0,border="red")
+```
+
+What proportion of the points are inside the box?
+
+```{r}
+data <- data.frame(e1=e[,1], e2=e[,2])
+pointsInBox <- data %>%
+  filter(e1 <= k & e2 <= k) %>%
+  nrow
+pointsInBox / nrow(data)
+
+mean(e[,1]<k & e[,2]<k) 
+```
+
+ Question 1.6.2 (1 point possible)
+
+Now make the sample plot with log:
+
+```{r}
+plot(log2(e[,1]),log2(e[,2]),main=paste0("corr=",signif(cor(log2(e[,1]),log2(e[,2])),2)),cex=0.5)
+k <- log2(3000)
+b <- log2(0.5)
+polygon(c(b,k,k,b),c(b,b,k,k),col="red",density=0,border="red")
+```
+
+What is an advantage of taking the log?
+
+The tails do not dominate the plot. 
+
+ Question 1.6.3 (2 points possible)
+
+Make an MA-plot
+
+```{r}
+e <- log2(exprs(mas133))
+plot((e[,1]+e[,2])/2,e[,2]-e[,1],cex=0.5)
+```
+
+The two samples we are plotting are replicates (they random samples fro the same batch of RNA) The correlation of the data was 0.997 in the original scale, 0.96 in the log-scale. High correlations are sometimes confused for evidence of replication. But replication implies we get very small difference between the observations which is better measured with distance or differences.
+
+What is the standard deviation of the log ratios for this comparison?
+
+```{r}
+sd(e[,2]-e[,1])
+```
+
+How many fold changes above 2 do we see? Note that these measures of log (base 2) of expression so a fold change of 2 translates into a difference, in absolute value, of 1.
+
+```{r}
+length(which(abs(e[,2]-e[,1]) >= 1))
+```
+
+ This are log2 measurements so a fold-change of 2 relates to differences of 1 (in absolute value). We then simply count the occurrences:
+sum(abs(e[,2]-e[,1])>1) 
