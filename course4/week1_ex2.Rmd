@@ -1,0 +1,155 @@
+ Question 1.5.1 Using a database object (1 point possible)
+
+First, install the package Homo.sapiens using biocLite().
+
+The package Homo.sapiens contains an organism database object, which has the same name as the package, Homo.sapiens.
+
+```{r}
+library(Homo.sapiens)
+class(Homo.sapiens)
+```
+
+The OrganismDb object Homo.sapiens contains annotation information about human genes, in particular a series of relations between identifiers about human genes. Some of the identifiers can be provided as "keys", that is, as values to look up in the database, in order to find pieces of information which match that key. We can list all the possible types of keys:
+
+```{r}
+keytypes(Homo.sapiens)
+```
+
+There are also columns in the database, not all of which are keys. To list all the columns:
+
+```{r}
+columns(Homo.sapiens)
+```
+
+Two widely used catalogs of genes are NCBI Entrez Gene, and EBI ENSEMBL.
+
+We can use Homo.sapiens to count the number of unique Entrez identifiers. To do so, we use the keys() function, which takes two arguments: the database object, and the name of the type of key we are interested in. We use head() to limit the output:
+
+```{r}
+head(keys(Homo.sapiens, keytype="ENTREZID"))
+```
+
+How many unique Entrez identifiers are there? Hint: remember the unique() function.
+
+```{r}
+length(unique(keys(Homo.sapiens, keytype="ENTREZID")))
+```
+
+ Question 1.5.2 Counting ENSEMBL identifiers (1 point possible)
+
+Substitute keytype "ENSEMBL" in the keys command of the previous problem. How many unique Ensembl identifiers are found?
+
+```{r}
+length(unique(keys(Homo.sapiens, keytype="ENSEMBL")))
+```
+
+ Question 1.5.3 Using the select function (1 point possible)
+
+We can use the select() function to look up specific values in the database. The following line of code looks up the gene symbol, the Ensembl ID, the Entrez ID, and the chromosome number of the gene with the given Entrez ID, "123".
+
+```{r}
+select(Homo.sapiens, key="123", keytype="ENTREZID", columns=c("SYMBOL", "ENSEMBL", "ENTREZID", "CHR"))
+```
+
+Note that we ask for four columns: c("SYMBOL", "ENSEMBL", "ENTREZID", "CHR"). We know to use this by exploring the possibilities by typing columns(Homo.sapiens). You can get more information on what these column names are by typing, for example, ?SYMBOL.
+
+What is the Ensembl ID of the gene with the Entrez ID "9575"? Type in the full text name including ENSG... (As a side note: you might notice this gene has an interesting symbol name which gives a clue to its function in the cell.)
+
+```{r}
+select(Homo.sapiens, key="9575", keytype="ENTREZID", columns=c("SYMBOL", "ENSEMBL", "ENTREZID", "CHR"))
+```
+
+ Question 1.5.4 Looking up genes by function (1 point possible)
+
+We can list genes associated with certain biological processes or molecular functions if we know the right vocabulary. One such vocabulary is the "Gene Ontology", often shortened "GO". One term of interest in GO is "circadian rhythm". We use the following command to enumerate genes by Entrez ID annotated to this process:
+
+```{r}
+tab = select(Homo.sapiens, key="circadian rhythm", keytype="TERM", columns=c("ENTREZID"))
+```
+
+Note you will also see a warning about "1:many mapping between keys and return rows". This means that the table generated more than one Entrez ID assocaited with the key we provided, which is to be expected, because we know multiple genes are associated with circadian rhythm.
+
+How many unique Entrez IDs are associated with circadian rhythm according to this GO term?
+
+```{r}
+length(unique(tab$ENTREZID))
+```
+
+
+
+We will now load the sample ExpressionSet object from the previous video, and give it a short variable name.
+
+```{r}
+library(Biobase)
+data(sample.ExpressionSet)
+sample.ExpressionSet
+samp = sample.ExpressionSet
+```
+
+We can now perform convenient operations on the object, where any associated information about the columns or rows remains linked to the experiment information.
+
+Note that you can access the information about the samples with:
+
+```{r}
+pData(samp)
+```
+
+For example, to access information about the sex of the samples:
+
+```{r}
+pData(samp)$sex
+```
+
+And you can also use the shorthand:
+
+```{r}
+samp$sex
+```
+
+The experimental data matrix is stored in exprs(samp). We will refer to this as the experiment data in the following problems.
+
+Question 1.6.1 (1 point possible)
+
+Make a new ExpressionSet which contains the subset of the samples which are female. Remember you can subset the ExpressionSet object directly with [ and ]. What is the sum of the first row of experiment data, accessed by exprs(), for only the female samples?
+
+```{r}
+females <- samp[, samp$sex == "Female"]
+sum(exprs(females)[1,])
+```
+
+ Question 1.6.2 (1 point possible)
+
+Look up the experiment data of the sample ExpressionSet with experimentData(). Suppose we have a question about the experiment, who can we email for more information? Type in the email address.
+
+```{r}
+experimentData(samp)
+```
+
+ Question 1.6.3 (1 point possible)
+
+Use the annotation() function to look up the annotation information about the experiment data. What is the annotation string associated with 'samp' (do not include the quote marks)? This is often important if we need more detailed information about the features.
+
+```{r}
+annotation(samp)
+```
+
+Note that because this annotation is the same for all experiments using this microarray product, we don't need to carry around the information in each object. Instead we make it available as an annotation project. So, for example, to get the gene symbols we can do the following:
+
+```{r}
+library(BiocInstaller)
+biocLite("hgu95av2.db")
+
+library(hgu95av2.db)
+fns = featureNames(samp)
+annot = select(hgu95av2.db, keys=fns, keytype="PROBEID", columns="SYMBOL")
+## this map is not one to one, so pick one:
+geneSymbols = annot [ match(fns, annot$PROBEID), "SYMBOL"]
+```
+
+ Question 1.6.4 (1 point possible)
+
+What is the correlation - the Pearson correlation given by cor() - of the 'score' information for the samples and the experiment data for feature '31489_at'? Compute the correlation on the full 'samp' dataset, not the subsetted dataset of females. Note that, regardless of re-ordering of columns or rows, by using ExpressionSet objects, we can obtain the same answer with a single line of code.
+
+```{r}
+cor(samp$score, exprs(samp)["31489_at",])
+```
