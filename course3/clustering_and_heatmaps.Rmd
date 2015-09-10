@@ -131,7 +131,7 @@ The `heatmap.2` function in the `gplots` package on CRAN is a bit more customize
 ```{r heatmap.2,message=FALSE,fig.cap="Heatmap created using the 40 most variable genes and the function heatmap.2.", fig.width=10.5,fig.height=5.25}
 
 library(gplots) ##Available from CRAN
-cols <- palette(brewer.pal(8, "Dark2"))[as.fumeric(tissue)]
+cols <- palette(brewer.pal(7, "Dark2"))[as.numeric(tissue)]
 head(cbind(colnames(e),cols))
 heatmap.2(e[idx,], labCol=tissue,
           trace="none", 

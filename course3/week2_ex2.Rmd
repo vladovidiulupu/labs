@@ -1,0 +1,226 @@
+ Question 2.4.1 (1 point possible)
+
+Create a random matrix with no correlation in the following way:
+
+```{r}
+set.seed(1)
+m = 10000
+n = 24
+x = matrix(rnorm(m*n),m,n)
+colnames(x)=1:n
+```
+
+Run hierarchical clustering on this data with the hclust function with default parameters to cluster the columns. Create a dendrogram.
+
+From the dendrogram which pairs of samples are the furthest away from each other?
+
+```{r}
+distances <- dist(t(x))
+hc <- hclust(distances)
+plot(hc)
+```
+
+ Question 2.4.2 (1 point possible)
+
+Set the seed at 1, set.seed(1) and replicate the creation of this matrix 100 times
+
+```{r}
+m = 10000
+n = 24
+x = matrix(rnorm(m*n),m,n)
+```
+
+then perform hierarchical clustering as in the solution to question 2.4.1 and find the number of clusters if you use cutree at height 143. Note that this number is a random variable.
+
+Based on the Monte Carlo simulation, what is the standard error of this random variable?
+
+```{r}
+set.seed(1)
+m = 10000
+n = 24
+numClusters <- replicate(100, {
+  x = matrix(rnorm(m*n),m,n)
+  hc <- hclust(dist(t(x)))
+  clusterAssignment <- cutree(hc, h = 143)
+  length(unique(clusterAssignment))
+})
+sd(numClusters)
+popsd(numClusters)
+```
+
+ Question 2.4.3 (1 point possible)
+
+Run kmeans with 4 centers for the blood RNA data:
+
+```{r}
+library(GSE5859Subset)
+data(GSE5859Subset)
+```
+
+Set the seed to 10, set.seed(10) right before running kmeans with 5 centers.
+
+Explore the relationship of clusters and information in sampleInfo. Which of th following best described what you find:
+
+Date is driving the clusters
+
+```{r}
+dim(geneExpression)
+set.seed(10)
+km <- kmeans(t(geneExpression), centers=5)
+table(sampleInfo$group, km$cluster)
+table(sampleInfo$date, km$cluster)
+```
+
+ Question 2.5.1 (1 point possible)
+
+Load the data:
+
+```{r}
+library(GSE5859Subset)
+data(GSE5859Subset)
+```  
+
+Pick the 25 genes with the highest across sample variance. This function might help
+
+```{r}
+install.packages("matrixStats")
+library(matrixStats)
+?rowMads ##we use mads due to a outlier sample
+```
+
+Use heatmap.2 to make a heatmap showing the sampleInfo$group with color, the date as labels, the rows labelled with chromosome, and scaling the rows.
+
+What do we learn from this heatmap?
+
+```{r}
+hist(rowVars(geneExpression))
+hist(rowMads(geneExpression))
+idx <- order(-rowMads(geneExpression))[1:25]
+
+
+cols <- palette(brewer.pal(3, "Dark2"))[as.numeric(sampleInfo$group) + 1]
+hmcol <- colorRampPalette(brewer.pal(9, "OrRd"))(100)
+
+heatmap(geneExpression[idx,], col=hmcol)
+
+heatmap.2(geneExpression[idx,], labCol=as.character(sampleInfo$group),
+          trace="none", 
+          ColSideColors=cols, 
+          col=hmcol)
+```
+
+ A group of chrY genes are higher in group 0 and appear to drive the clustering. Within those clusters there appears to be clustering by month.
+ 
+ Official solution:
+
+```{r}
+##load libraries
+library(rafalib)
+library(gplots)
+library(matrixStats)
+library(RColorBrewer)
+##make colors
+cols = colorRampPalette(rev(brewer.pal(11,"RdBu")))(25)
+gcol=brewer.pal(3,"Dark2")
+gcol=gcol[sampleInfo$g+1]
+
+##make lables: remove 2005 since it's common to all
+labcol= gsub("2005-","",sampleInfo$date)  
+
+##pick highly variable genes:
+sds =rowMads(geneExpression)
+ind = order(sds,decreasing=TRUE)[1:25]
+
+## make heatmap
+heatmap.2(geneExpression[ind,],
+          col=cols,
+          trace="none",
+          scale="row",
+          labRow=geneAnnotation$CHR[ind],
+          labCol=labcol,
+          ColSideColors=gcol,
+          key=FALSE)
+```
+
+ Question 2.5.2 (1 point possible)
+
+Create a large data set of random data that is completely independent of sampleInfo$group like this:
+
+```{r}
+set.seed(17)
+m = nrow(geneExpression)
+n = ncol(geneExpression)
+x = matrix(rnorm(m*n),m,n)
+g = factor(sampleInfo$g )
+```  
+
+Create two heatmaps with these data. Show the group g either with labels or colors.
+
+1. Taking the 50 genes with smallest p-values obtained with rowttests
+
+2. Taking the 50 genes with largest standard deviations.
+
+Which of the following statements is true:
+
+```{r}
+pvals <- rowttests(x)$p.value
+sds <- rowSds(x)
+
+idxPvals <- order(pvals)[1:50]
+idxSds <- order(-sds)[1:50]
+
+heatmap.2(geneExpression[idxPvals,],
+          col=cols,
+          trace="none",
+          scale="row",
+          labRow=geneAnnotation$CHR[idxPvals],
+          labCol=labcol,
+          ColSideColors=gcol,
+          key=FALSE)
+
+heatmap.2(geneExpression[idxSds,],
+          col=cols,
+          trace="none",
+          scale="row",
+          labRow=geneAnnotation$CHR[idxSds],
+          labCol=labcol,
+          ColSideColors=gcol,
+          key=FALSE)
+```
+
+ There is no relationship between g and x but with 8,793 tests some will appear significant by chance. Selecting genes with the t-test gives us a deceiving result. 
+ 
+Official solution:
+ 
+```{r}
+library(gplots)
+library(matrixStats)
+library(genefilter)
+library(RColorBrewer)
+cols = colorRampPalette(rev(brewer.pal(11,"RdBu")))(25)
+
+ttest = rowttests(x,g)
+sds = rowSds(x)
+Indexes = list(t=order(ttest$p.value)[1:50], s=order(-sds)[1:50])
+for(ind in Indexes){
+ heatmap.2(x[ind,],
+          col=cols,
+          trace="none",
+          scale="row",
+          labCol=g,
+          key=FALSE)
+ }
+```
+
+Conditional Expectations
+
+Throughout this assessment it will be useful to remember that when our data are 0s and 1s probabilities and expectations are the same thing. We can do the math, but here is some R code:
+
+```{r}
+n = 1000
+y = rbinom(n,1,0.25)
+##proportion of ones Pr(Y)
+sum(y==1)/length(y)
+##expectaion of Y
+mean(y)
+```

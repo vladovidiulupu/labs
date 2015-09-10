@@ -1,0 +1,386 @@
+ Question 2.1.1 (1 point possible)
+
+If you have not done so already, install the data package tissueGeneExpression.
+
+```{r eval=FALSE}
+library(devtools)
+install_github("genomicsclass/tissuesGeneExpression")
+```  
+
+The data represents RNA expression levels for seven tissues, each with several biological replictes. We call samples that we consider to be from the same population, such as liver tissue from different individuals,biological replictes:
+
+```{r}
+library(tissuesGeneExpression)
+data(tissuesGeneExpression)
+dim(e)
+head(e)
+head(tissue)
+```
+
+How many biological replicates for hippocampus?
+
+```{r}
+sum(tissue == "hippocampus")
+```
+
+ Question 2.1.2 (1 point possible)
+
+What is the distance between samples 3 and 45?
+
+```{r}
+sqrt(crossprod(e[,3] - e[,45]))
+```
+
+ Question 2.1.3 (1 point possible)
+
+What is the distance between gene 210486_at and 200805_at
+
+```{r}
+sqrt(crossprod(e["210486_at",] - e["200805_at",]))
+```
+
+ Question 2.1.4 (1 point possible)
+
+If I run the command (don't run it!)
+
+```{r eval=FALSE}
+d = as.matrix(dist( e))
+```
+
+How many cells (number of rows times number of columns) would this matrix have?
+
+```{r}
+nrow(e) * nrow(e)
+```
+
+ Question 2.1.5 (2 points possible)
+
+Compute the distance between all pairs of samples:
+
+```{r}
+d = dist(t(e))
+```
+
+Read the help file for dist.
+
+How many distances are stored in d? (Hint: What is the length of d)?
+
+```{r}
+length(d)
+ncol(e) * (ncol(e) - 1) / 2
+```
+
+Why is the answer above not ncol(e)^2?
+
+Because we take advantage of symmetry: only lower triangular matrix is stored thus only ncol(e)*(ncol(e)-1)/2 values
+
+Note that the distance between samples i and j is the same as distance between samples j and i. Also the distance between a sample and itself is 0. The object returned by dist avoids storing all those values.
+
+
+
+For the following questions use the data loaded with:
+
+```{r}
+library(tissuesGeneExpression)
+data(tissuesGeneExpression)
+```
+
+Important note: When using the SVD in practice it is important to note that the solution to SVD is not unique. This is because UDV⊤=(−U)D(−V)⊤. In fact we can flip the sign of each column of U and as long as we also flip the respective column in V the decompostion works. Here R code demonstrting this:
+
+```{r}
+s = svd(e)
+signflips = sample(c(-1,1),ncol(e),replace=TRUE)
+signflips
+```
+
+Now we switch the sign of each column and check that we get the same answer. We do this using the function sweep. If x is a matrix and a is a vector, then sweep(x,1,y,FUN="*") applies the fun FUN to each row i FUN(x[i,],a[i]), in this case x[i,]*a[i]. If instead of 1 we use 2 sweep applies this to columns. To learn about sweep read ?sweep. 
+
+```{r}
+newu= sweep(s$u,2,signflips,FUN="*")
+newv= sweep(s$v,2,signflips,FUN="*" )
+all.equal( s$u %*% diag(s$d) %*% t(s$v), newu %*% diag(s$d) %*% t(newv))
+```
+
+This is important to know because different implementations of the SVD algorithm may output sulutions with different signs. 
+
+ Question 2.2.1 (1 point possible)
+
+Compute the SVD of e
+
+```{r}
+s = svd(e)
+```
+
+Now compute the mean of each row:
+
+```{r}
+m = rowMeans(e)
+```
+
+What is the correlation between the first column of U and m?
+
+```{r}
+cor(s$u[,1], m)
+```
+
+ Question 2.2.2 (2 points possible)
+
+In question 2.2.1 we saw how the first column relates to the mean of the rows of e. Note that if we change these means, the distances between columns do not change. Here some R code showing how changing the means does not change the distances:
+
+```{r}
+newmeans = rnorm(nrow(e)) ##random values we will add to create new means
+newe = e+newmeans ##we change the means
+sqrt(crossprod(e[,3]-e[,45]))
+sqrt(crossprod(newe[,3]-newe[,45])) 
+``` 
+
+So we might as well make the mean of each row 0 since it does not help us approximate the column distances. We will define y as the detrended e and recompute the SVD:
+
+```{r}
+y = e - rowMeans(e)
+s = svd(y)
+```
+
+We showed that UDV⊤ is equal to y up to numerical error
+
+```{r}
+resid = y - s$u %*% diag(s$d) %*% t(s$v)
+max(abs(resid))
+```
+
+The above can be made more efficient in two ways. First, using the crossprod and second not creating a diagonal matrix. Note that in R we can multiply a matrix x by vector a. The result is a matrix with row i equal to x[i,]*a[i]. Here is an example to illustrate this.
+
+```{r}
+x=matrix(rep(c(1,2),each=5),5,2)
+x
+
+x*c(1:5)
+```
+
+Note that the above code is actually equivalent to:
+
+```{r}
+sweep(x,1,1:5,"*")
+```
+
+This means that we don't have to convert s$d into a matrix to obtain DV⊤.
+
+Which of the following gives us the same as diag(s$d)%*%t(s$v)?
+
+```{r}
+t(s$v) * s$d
+max(abs(t(s$v) * s$d - diag(s$d)%*%t(s$v)))
+```
+
+If we define vd = t(s$d * t(s$v)) then which of the following is not the same UDV⊤ :
+
+```{r}
+tcrossprod(s$u,vd)
+s$u %*% s$d * t(s$v)
+s$u %*% (s$d * t(s$v) )
+tcrossprod( t( s$d*t(s$u)) , s$v) 
+```
+
+```{r}
+s$u %*% s$d * t(s$v)
+```
+
+ Question 2.2.3 (1 point possible)
+
+Let z = s$d * t(s$v). We showed derivation demonstrating that because U is orthogonal the distance between e[,3] and e[,45] is the same as the distance between y[,3] and y[,45] which is the same as z[,3] and z[,45]
+
+```{r}
+z = s$d * t(s$v)
+
+sqrt(crossprod(e[,3]-e[,45]))
+sqrt(crossprod(y[,3]-y[,45]))
+sqrt(crossprod(z[,3]-z[,45]))
+```
+
+Note that the columns z have 189 entries, compared to 22,215 for e.
+
+What is the difference (in absolute value) between the actual distance sqrt(crossprod(e[,3]-e[,45])) and the approximation using only two dimension of z?
+
+```{r}
+realdistance = sqrt(crossprod(e[,3]-e[,45]))
+approxdistance = sqrt(crossprod(z[1:2,3]-z[1:2,45]))
+abs(realdistance - approxdistance)
+```
+
+ Question 2.2.4 (1 point possible)
+
+What is the minium number of dimensions we need to use for the approximation in question 2.2.3 to be within 10% or less?
+
+```{r}
+realdistance = sqrt(crossprod(e[,3]-e[,45]))
+for (k in 1:nrow(z)) {
+  approxdistance = sqrt(crossprod(z[1:k,3]-z[1:k,45]))
+  if (abs(realdistance - approxdistance) <= 1/10 * realdistance) {
+    print(k)
+    break
+  }
+}
+```
+
+ Question 2.2.5 (1 point possible)
+
+Compute distances between sample 3 and all other samples:
+
+```{r}
+distances = sqrt(apply(e[,-3]-e[,3],2,crossprod))
+```
+
+Recompute this distance using the 2 dimensional approximation.
+
+What is the Spearman correlation between this approximate distance and the actual distance?
+
+```{r}
+approxdistances = sqrt(apply(z[1:2,-3]-z[1:2,3],2,crossprod))
+cor(distances, approxdistances, method="spearman")
+```
+
+
+
+For the following queesions use the data loaded with:
+
+```{r}
+library(tissuesGeneExpression)
+data(tissuesGeneExpression)
+```
+
+Question 2.3.1 (2 points possible)
+
+Using the z we computed in 2.2.3
+
+```{r}
+y = e - rowMeans(e)
+s = svd(y)
+z = s$d * t(s$v)
+```
+
+we can make an mds plot
+
+```{r}
+library(rafalib)
+ftissue = factor(tissue)
+mypar(1,1)
+plot(z[1,],z[2,],col=as.numeric(ftissue))
+legend("topleft",levels(ftissue),col=seq_along(ftissue),pch=1)
+```
+
+Now run the function cmdscale on the original data
+
+```{r}
+d = dist(t(e))
+mds = cmdscale(d)
+```
+
+What is the correlation between the first dimension of z and the first dimension in mds?
+
+```{r}
+cor(z[1,], mds[,1])
+```
+
+What is the correlation between the second dimension of z and the second dimension in mds?
+
+```{r}
+cor(z[2,], mds[,2])
+```
+
+ Question 2.3.2 (1 point possible)
+
+Note that the mds plot is not the same:
+
+```{r}
+library(rafalib)
+ftissue = factor(tissue)
+mypar(1,2)
+plot(z[1,],z[2,],col=as.numeric(ftissue))
+legend("topleft",levels(ftissue),col=seq_along(ftissue),pch=1)
+plot(mds[,1],mds[,2],col=as.numeric(ftissue))
+```
+
+Given the answer to 2.3.1, what do we have to do to z[1,] and z[2,] to get a practically identical plot?
+
+ multiply z[,1] and z[,2] by -1 
+
+ Question 2.3.3 (3 points possible)
+
+Load the following dataset
+
+```{r}
+library(GSE5859Subset)
+data(GSE5859Subset)
+```
+
+Compute the svd and compute z
+
+```{r}
+s = svd(geneExpression-rowMeans(geneExpression))
+z = s$d * t(s$v)
+```
+
+Which dimension of z most correlates with the outcome sampleInfo$group?
+
+```{r}
+correlations <- apply(z, 1, FUN = cor, sampleInfo$group)
+which.max(correlations)
+```
+
+What is this max correlation?
+
+```{r}
+max(correlations)
+```
+
+Which dimension of z has the second highest correlates with the outcome sampleInfo$group?
+
+```{r}
+order(correlations, decreasing = T)
+```
+
+ Question 2.3.4 (2 points possible)
+
+Note these measurements were made during two months:
+
+```{r}
+sampleInfo$date
+```
+
+We can extract the month this way:
+
+```{r}
+month = format( sampleInfo$date, "%m")
+month = factor( month)
+```  
+
+Which dimension of z has the highest correlates with the outcome month?
+
+```{r}
+monthN <- as.numeric(as.character((month)))
+correlationsMonth <- apply(z, 1, FUN = cor, monthN)
+which.max(correlationsMonth)
+```
+
+What is this correlation?
+
+```{r}
+max(correlationsMonth)
+```
+
+Note: this is an advanced question. Please feel free to discuss on the forum.
+
+In question 2.3.3 we saw that the 6th dimension was highly correlate to the sampleInfo$group. Now take the 6th column of U and stratify by the gene chromosome. Remove chrUn and make a boxplot of the values of U6 stratified by chromosome.
+
+Which chromosome looks different from the rest? Copy and paste the name as it appears in geneAnnotation
+
+```{r}
+boxplot(s$u[,6] ~ geneAnnotation$CHR)
+
+result = split(s$u[,6],geneAnnotation$CHR)
+result = result[ which(names(result)!="chrUn") ]
+boxplot(result,range=0)
+boxplot(result,range=0,ylim=c(-0.025,0.025))
+medians = sapply(result,median)
+names(result)[ which.max(abs(medians)) ]
+```
